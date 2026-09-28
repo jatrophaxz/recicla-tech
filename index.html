@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ReciclaTech · Descarte consciente de lixo eletrônico</title>
 <meta name="description" content="Descubra o que pode ser descartado, como se preparar e simule o registro do seu descarte de eletrônicos.">
-<meta name="theme-color" content="#04070C">
+<meta name="theme-color" content="#000000">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,8 +23,8 @@
 }
 
 :root{
-  --void:#04070C;
-  --void-2:#081018;
+  --void:#000;
+  --void-2:#050505;
   --portal:#3DFF6E;
   --portal-deep:#0F7A3A;
   --cyan:#5CE1FF;
@@ -68,7 +68,20 @@ html{scrollbar-width:thin;scrollbar-color:rgba(61,255,110,.4) transparent}
 /* ============ FUNDO WEBGL ============ */
 #bg{
   position:fixed;inset:0;width:100%;height:100%;z-index:-2;display:block;
-  background:radial-gradient(ellipse at 50% 45%,#0a2a16 0%,var(--void) 65%);
+  background:#000;
+  opacity:0;visibility:hidden;
+  transition:opacity .7s ease,visibility 0s linear .7s;
+}
+html.portal-on #bg{opacity:1;visibility:visible;transition:opacity .5s ease}
+/* sem portal: nada de vinheta/grain (só custo). Blur de fundo desligado: com o canvas animando, trava. */
+html:not(.portal-on) .vignette,html:not(.portal-on) .grain{display:none}
+*,*::before,*::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.portal-hint{display:none}
+@media (pointer:coarse){
+  .portal-hint{display:grid;place-items:center;position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    z-index:80;width:44px;height:44px;border-radius:50%;border:1px solid var(--line-strong);
+    background:#000;color:var(--portal);font:600 1rem var(--font-display);cursor:pointer}
+  html.portal-on .portal-hint{background:var(--portal);color:#021008}
 }
 .vignette{
   position:fixed;inset:0;z-index:-1;pointer-events:none;
@@ -601,6 +614,7 @@ footer p{font-size:.88rem;color:var(--mute);max-width:60ch}
 <canvas id="bg" aria-hidden="true"></canvas>
 <div class="vignette" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
+<button class="portal-hint" id="portalBtn" aria-label="Alternar portal (tecla P)">P</button>
 
 <div class="progress" aria-hidden="true"><i id="bar"></i></div>
 
@@ -1281,7 +1295,7 @@ void main(){
   };
 }
 
-let dpr = 1, renderScale = 1;
+let dpr = 1, renderScale = .75;
 function resize(){
   const maxDpr = innerWidth < 700 ? 1.25 : 1.5;
   dpr = Math.min(devicePixelRatio || 1, maxDpr) * renderScale;
@@ -1427,6 +1441,28 @@ if (!reduce && matchMedia('(hover:hover) and (pointer:fine)').matches) {
 
 /* ================= LOOP PRINCIPAL ================= */
 let t0 = performance.now(), last = t0, slow = 0, frames = 0, visible = true;
+
+/* ===== PORTAL sob demanda (tecla P): só renderiza WebGL enquanto estiver ligado ===== */
+let portalOn = false, glActive = false, offTimer = 0;
+function setPortal(on){
+  portalOn = on;
+  document.documentElement.classList.toggle('portal-on', on);
+  clearTimeout(offTimer);
+  if (on) {
+    glActive = true;
+    state.open = 0;              /* reabre o portal com a animação */
+    t0 = performance.now();
+    frames = 0; slow = 0;
+  } else {
+    offTimer = setTimeout(() => { glActive = false; }, 750);  /* espera o fade-out */
+  }
+}
+addEventListener('keydown', e => {
+  if (e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  if (e.key === 'p' || e.key === 'P') setPortal(!portalOn);
+});
+$('#portalBtn').addEventListener('click', () => setPortal(!portalOn));
 document.addEventListener('visibilitychange', () => { visible = !document.hidden; last = performance.now(); });
 
 function frame(now){
@@ -1455,7 +1491,7 @@ function frame(now){
   state.my = lerp(state.my, state.ty, 1 - Math.pow(.05, dt));
   state.open = lerp(state.open, 1, 1 - Math.pow(.25, dt));
 
-  if (glOK) {
+  if (glOK && glActive) {
     gl.uniform2f(U.res, canvas.width, canvas.height);
     gl.uniform1f(U.time, reduce ? 4.2 : (now - t0) / 1000);
     gl.uniform1f(U.scroll, state.scroll);
