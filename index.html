@@ -94,11 +94,11 @@ html{scrollbar-width:thin;scrollbar-color:rgba(61,255,110,.4) transparent}
 .topbar{
   position:fixed;top:0;left:0;right:0;z-index:50;
   display:flex;align-items:center;justify-content:flex-end;
-  padding:22px var(--pad);
-  transition:transform .6s var(--ease-out),background .4s;
+  padding:14px var(--pad);
+  background:linear-gradient(to bottom,rgba(4,7,12,.85),rgba(4,7,12,0));
+  transition:background .4s;
   mix-blend-mode:normal;
 }
-.topbar.is-hidden{transform:translateY(-110%)}
 
 .nav{display:flex;gap:6px;align-items:center}
 .nav a{
@@ -1013,6 +1013,27 @@ function closeMenu(){
 menuBtn.addEventListener('click', () => nav.classList.contains('open') ? closeMenu() : openMenu());
 addEventListener('keydown', e => { if (e.key === 'Escape' && nav.classList.contains('open')) closeMenu(); });
 
+/* ================= SETAS ESQUERDA/DIREITA: navegar entre seções ================= */
+const secOrder = ['hero','por-que','descartar','cuidados','onde','simular'];
+addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  if (document.body.classList.contains('locked')) return;
+  if (nav.classList.contains('open')) return;
+  if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  e.preventDefault();
+  const y = scroller.enabled && scroller.active ? scroller.target : scrollY;
+  const tops = secOrder.map(id => {
+    if (id === 'hero') return 0;
+    const el = document.getElementById(id);
+    return Math.max(0, el.offsetTop - (id === 'simular' ? 20 : 40));
+  });
+  let cur = 0;
+  for (let i = 0; i < tops.length; i++) if (y >= tops[i] - 120) cur = i;
+  const next = clamp(cur + (e.key === 'ArrowRight' ? 1 : -1), 0, secOrder.length - 1);
+  goTo(tops[next]);
+});
+
 /* ================= WEBGL: PORTAL ================= */
 const canvas = $('#bg');
 const gl = canvas.getContext('webgl', { antialias:false, alpha:false, powerPreference:'high-performance' });
@@ -1260,7 +1281,6 @@ var secs = ['por-que','descartar','cuidados','onde','simular'].map(id => {
   const el = document.getElementById(id);
   return { id, el, wrap: $('.wrap', el), top:0, bot:0, pt:0, on:false };
 });
-let lastY = 0;
 
 let lastBar = -1, lastCur = null;
 function updateHUD(y){
@@ -1269,11 +1289,6 @@ function updateHUD(y){
   const d = y / (innerHeight * 1.1);
   state.scrollTarget = clamp(d, 0, 1);
   state.depthTarget = reduce ? 0 : d;
-
-  const dy = y - lastY;
-  if (y > 240 && dy > 6) topbar.classList.add('is-hidden');
-  else if (dy < -6 || y < 240) topbar.classList.remove('is-hidden');
-  lastY = y;
 
   let cur = null;
   const mid = y + innerHeight * .4;
