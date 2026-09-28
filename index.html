@@ -638,7 +638,7 @@ footer p{font-size:.88rem;color:var(--mute);max-width:60ch}
   <!-- POR QUE -->
   <section class="why" id="por-que" data-observe>
     <div class="wrap why-grid">
-      <div class="why-head">
+      <div class="why-head" data-stop>
         <h2 class="h-section">
           <span class="reveal-line"><span>Descartar certo</span></span>
           <span class="reveal-line"><span>muda o que</span></span>
@@ -652,7 +652,7 @@ footer p{font-size:.88rem;color:var(--mute);max-width:60ch}
         <p>anos até os plásticos de um eletrônico se decomporem num aterro. Metais como alumínio e cobre praticamente não se degradam.</p>
       </div>
 
-      <div class="why-list">
+      <div class="why-list" data-stop>
         <article class="why-item" data-observe>
           <h3>Protege a água e o solo</h3>
           <div>
@@ -1015,6 +1015,35 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && nav.classList.conta
 
 /* ================= SETAS ESQUERDA/DIREITA: navegar entre seções ================= */
 const secOrder = ['hero','por-que','descartar','cuidados','onde','simular'];
+
+/* Calcula as "paradas" das setas. Seção que cabe na tela fica centralizada;
+   seção mais alta que a tela é dividida em blocos ([data-stop]) ou em passos de ~1 tela. */
+function getStops(){
+  const bar = 64;                          /* altura da barra superior */
+  const avail = innerHeight - bar;         /* área útil da tela */
+  /* posição absoluta SEM transformações (as seções têm zoom/rotação durante o scroll) */
+  const abs = el => { let t = 0; for (let n = el; n; n = n.offsetParent) t += n.offsetTop; return t; };
+  const fit = (el) => {                    /* posição que centraliza (ou alinha) o elemento */
+    const h = el.offsetHeight, t = abs(el);
+    return h <= avail ? t - bar - (avail - h) / 2 : t - bar - 16;
+  };
+  const stops = [0];
+  secOrder.slice(1).forEach(id => {
+    const sec = document.getElementById(id);
+    const wrap = sec.querySelector('.wrap') || sec;
+    const blocks = [...sec.querySelectorAll('[data-stop]')];
+    if (wrap.offsetHeight <= avail) { stops.push(fit(wrap)); return; }
+    if (blocks.length) { blocks.forEach(b => stops.push(fit(b))); return; }
+    const top = abs(wrap), h = wrap.offsetHeight;
+    for (let y = top; y < top + h - avail * .25; y += avail * .85) stops.push(y - bar - 16);
+  });
+  const limit = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+  const out = [];
+  stops.map(v => clamp(Math.round(v), 0, limit)).sort((a,b) => a - b)
+    .forEach(v => { if (!out.length || v - out[out.length-1] > 40) out.push(v); });
+  return out;
+}
+
 addEventListener('keydown', e => {
   if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -1023,15 +1052,12 @@ addEventListener('keydown', e => {
   if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
   e.preventDefault();
   const y = scroller.enabled && scroller.active ? scroller.target : scrollY;
-  const tops = secOrder.map(id => {
-    if (id === 'hero') return 0;
-    const el = document.getElementById(id);
-    return Math.max(0, el.offsetTop - (id === 'simular' ? 20 : 40));
-  });
-  let cur = 0;
-  for (let i = 0; i < tops.length; i++) if (y >= tops[i] - 120) cur = i;
-  const next = clamp(cur + (e.key === 'ArrowRight' ? 1 : -1), 0, secOrder.length - 1);
-  goTo(tops[next]);
+  const stops = getStops();
+  let dest;
+  if (e.key === 'ArrowRight') dest = stops.find(v => v > y + 24);
+  else dest = [...stops].reverse().find(v => v < y - 24);
+  if (dest === undefined) dest = e.key === 'ArrowRight' ? stops[stops.length-1] : 0;
+  goTo(dest);
 });
 
 /* ================= WEBGL: PORTAL ================= */
